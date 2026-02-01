@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qa Nos</title>
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="历法 E.5S">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="apple-touch-icon" href="icon.png">
+    <link rel="icon" href="icon.png">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400&display=swap');
+
+        :root {
+            --bg: #0a0a0a;
+            --dim: rgba(128, 128, 128, 0.1);
+            --theme-color: #ffecb3; 
+            --sun-gold: rgba(255, 215, 0, 0.95); 
+            --font-main: 'Inter', system-ui, sans-serif;
+            --input-bg: rgba(255, 255, 255, 0.05);
+        }
+
+        body {
+            background: var(--bg); color: var(--theme-color);
+            font-family: var(--font-main); display: flex;
+            flex-direction: column; align-items: center;
+            min-height: 100vh; margin: 0; padding: 20px 0;
+            transition: background 0.8s, color 0.8s;
+            overflow-x: hidden;
+            /* 强制所有数字使用等宽变体 */
+            font-variant-numeric: tabular-nums;
+        }
+
+        .orbit-container {
+            position: relative;
+            width: min(450px, 80vw); height: min(450px, 80vw);
+            display: flex; justify-content: center; align-items: center;
+            margin-bottom: 40px; flex-shrink: 0;
+        }
+
+        .orbit-track { position: absolute; width: 100%; height: 100%; border: 1px solid var(--dim); border-radius: 50%; }
+
+        .orbit-tail {
+            position: absolute; width: 100%; height: 100%; border-radius: 50%;
+            background: conic-gradient(from 270deg, transparent 0%, transparent 85%, var(--sun-gold) 100%);
+            mask: radial-gradient(closest-side, transparent 99%, black 100%);
+            -webkit-mask: radial-gradient(closest-side, transparent 99.4%, black 100%);
+            opacity: 0.5;
+        }
+
+        .sun-star {
+            position: absolute; width: 36px; height: 36px;
+            left: -18px; top: calc(50% - 18px); z-index: 10;
+            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.6));
+        }
+
+        .center-content { display: flex; flex-direction: column; align-items: center; z-index: 5; }
+        .digit-wrapper { width: 34px; display: flex; justify-content: center; }
+        svg.digit { width: 28px; height: 56px; }
+        svg.sep { width: 20px; height: 20px; }
+        line { stroke-width: 0.22; stroke-linecap: round; stroke: var(--dim); opacity: 0.2; }
+        line.on { stroke: var(--theme-color); opacity: 1; filter: drop-shadow(0 0 1px var(--theme-color)); }
+        line.sep-line { stroke-width: 0.15; opacity: 1; stroke: var(--theme-color); }
+
+        .info-layer { margin-top: 25px; text-align: center; }
+        
+        /* 解决跳动的关键：固定宽度与等宽设置 */
+        .latin-date, .latin-time { 
+            font-weight: 200; 
+            letter-spacing: 0.2em; 
+            display: block; 
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+        }
+        .latin-date { font-size: 1.25rem; margin-bottom: 8px; }
+        .latin-time { font-size: 1.25rem; margin-bottom: 40px; }
+
+        .local-time-row { font-size: 0.9rem; opacity: 0.4; font-weight: 300; letter-spacing: 0.05em; }
+
+        .converter-panel {
+            width: min(650px, 95vw); border-top: 1px solid var(--dim);
+            padding-top: 30px; display: flex; flex-direction: column; gap: 20px; align-items: center;
+        }
+
+        .conv-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; width: 100%; }
+        .input-wrap { display: flex; flex-direction: column; align-items: center; }
+        .label { font-size: 0.7rem; opacity: 0.5; margin-bottom: 8px; }
+        
+        .stepper {
+            display: flex; align-items: center; background: var(--input-bg);
+            border-radius: 6px; border: 1px solid var(--dim); overflow: hidden;
+        }
+        .stepper button {
+            background: none; border: none; color: var(--theme-color);
+            padding: 10px 14px; cursor: pointer; font-size: 1.1rem; opacity: 0.7;
+        }
+        .stepper button:hover { background: rgba(255,255,255,0.08); }
+        .val-display { min-width: 40px; text-align: center; font-size: 1.1rem; border-left: 1px solid var(--dim); border-right: 1px solid var(--dim); }
+
+        input[type="date"], input[type="number"] {
+            background: var(--input-bg); border: 1px solid var(--dim); color: var(--theme-color);
+            padding: 10px; border-radius: 6px; text-align: center; font-family: var(--font-main); font-size: 1rem;
+            font-variant-numeric: tabular-nums;
+        }
+    </style>
+</head>
+<script>
+  // 注册 Service Worker 实现离线运行
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('离线模式已就绪'))
+        .catch(err => console.log('注册失败', err));
+    });
+  }
+</script>
+<body>
+
+    <div class="orbit-container" id="orbit">
+        <div class="orbit-track"></div>
+        <div id="orbit-tail" class="orbit-tail"></div>
+        <div id="sun-star" class="sun-star">
+            <svg viewBox="0 0 100 100"><path d="M50 0 L55 45 L100 50 L55 55 L50 100 L45 55 L0 50 L45 45 Z" fill="#FFD700" /></svg>
+        </div>
+
+        <div class="center-content">
+            <div id="date-symbols" style="display:flex; align-items:center; margin-bottom:8px"></div>
+            <div id="time-symbols" style="display:flex; align-items:center;"></div>
+            <div class="info-layer">
+                <div id="latin-date" class="latin-date">----.--.--.--</div>
+                <div id="latin-time" class="latin-time">--:--:--</div>
+                <div id="local-time" class="local-time-row">SYNCING...</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="converter-panel">
+        <div class="conv-row">
+            <input type="date" id="conv-greg" onchange="syncFromGreg()">
+        </div>
+
+        <div class="conv-row">
+            <div class="input-wrap">
+                <span class="label">Àlos</span>
+                <input type="number" id="conv-a" style="width: 80px;" oninput="syncFromCustom()">
+            </div>
+            <div class="input-wrap">
+                <span class="label">Lukas</span>
+                <div class="stepper">
+                    <button onclick="changeL(-1)">-</button>
+                    <div id="disp-l" class="val-display">1</div>
+                    <button onclick="changeL(1)">+</button>
+                </div>
+            </div>
+            <div class="input-wrap">
+                <span class="label">Zenis</span>
+                <div class="stepper">
+                    <button onclick="changeZ(-1)">-</button>
+                    <div id="disp-z" class="val-display">1</div>
+                    <button onclick="changeZ(1)">+</button>
+                </div>
+            </div>
+            <div class="input-wrap">
+                <span class="label">Nis</span>
+                <div class="stepper">
+                    <button onclick="changeN(-1)">-</button>
+                    <div id="disp-n" class="val-display">1</div>
+                    <button onclick="changeN(1)">+</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    const GLYPHS = { 10: 'Ø', 11: 'ł', 12: 'Ʉ' };
+    const UNIX_ANCHOR = 1584998430.13;
+    const DAYS_ANCHOR = 4801420;
+
+    let cur = { a: 8006, l: 1, z: 1, n: 1 };
+
+    const toTotal = (a,l,z,n) => (a-1)*600 + (l-1)*60 + (z-1)*12 + n;
+    const fromTotal = (G) => {
+        let a = Math.floor((G - 1) / 600) + 1;
+        let l = Math.floor(((G - 1) % 600) / 60) + 1;
+        let z = Math.floor((((G - 1) % 600) % 60) / 12) + 1;
+        let n = (((G - 1) % 600) % 60) % 12 + 1;
+        return { a, l, z, n };
+    };
+
+    function updateUI() {
+        document.getElementById('conv-a').value = cur.a;
+        document.getElementById('disp-l').innerText = GLYPHS[cur.l] || cur.l;
+        document.getElementById('disp-z').innerText = GLYPHS[cur.z] || cur.z;
+        document.getElementById('disp-n').innerText = GLYPHS[cur.n] || cur.n;
+        const targetUnix = UNIX_ANCHOR + (toTotal(cur.a, cur.l, cur.z, cur.n) - DAYS_ANCHOR) * 86400;
+        const bd = new Date(targetUnix * 1000 + (8 * 3600 * 1000));
+        document.getElementById('conv-greg').value = bd.toISOString().split('T')[0];
+    }
+
+    function changeN(d) { let g = toTotal(cur.a, cur.l, cur.z, cur.n) + d; cur = fromTotal(g); updateUI(); }
+    function changeZ(d) { let g = toTotal(cur.a, cur.l, cur.z, cur.n) + (d * 12); cur = fromTotal(g); updateUI(); }
+    function changeL(d) { let g = toTotal(cur.a, cur.l, cur.z, cur.n) + (d * 60); cur = fromTotal(g); updateUI(); }
+    function syncFromCustom() { cur.a = parseInt(document.getElementById('conv-a').value) || 1; updateUI(); }
+
+    function syncFromGreg() {
+        const input = document.getElementById('conv-greg').value;
+        if(!input) return;
+        const targetTs = new Date(`${input}T05:20:30.13+08:00`).getTime() / 1000;
+        const G = DAYS_ANCHOR + Math.floor((targetTs - UNIX_ANCHOR) / 86400);
+        cur = fromTotal(G);
+        updateUI();
+    }
+
+    const SEGS = {
+        'A1': [-1, -2, 0, -2], 'A2': [0, -2, 1, -2], 'B1': [1, -2, 1, 0], 'B2': [1, 0, 1, 1], 'B3': [1, 1, 1, 2],
+        'C': [-1, 2, 1, 2], 'D1': [-1, -2, -1, -1], 'D2': [-1, -1, -1, 0], 'D3': [-1, 0, -1, 1], 'D4': [-1, 1, -1, 2],
+        'E': [-1, 0, 1, 0], 'F': [0, -2, 0, 2], 'G': [-1, -1, 0, -2], 'H': [0, -2, 1, -1], 'I': [-1, -1, 0, 0],
+        'J1': [0, 0, 1, -1], 'J2': [-1, 1, 0, 0], 'K': [-1, 1, 0, 2], 'L': [0, 2, 1, 1], 'M': [0, 0, 1, 2], 'N': [0, 2, 1, 0]
+    };
+    const DIGITS_MAP = {
+        '0':['A','B','C','D'], '1':['F'], '2':['B','C','D'], '3':['A','B'], '4':['D','E','B2','B3'],
+        '5':['A2','B1','N','K','J2','M'], '6':['G','H','J','K','L'], '7':['A','B','D1','D2','E','C'],
+        '8':['A','C','I','J2','D1','D4'], '9':['C','D'], '10':['A','B','C','D','E'], '11':['F','E'], '12':['B','C','D','E']
+    };
+    const GROUPS = { 'A':['A1','A2'], 'B':['B1','B2','B3'], 'D':['D1','D2','D3','D4'], 'J':['J1','J2'] };
+
+    function createDigitSVG(v) {
+        const active = [];
+        const config = DIGITS_MAP[v.toString()] || [];
+        config.forEach(s => GROUPS[s] ? active.push(...GROUPS[s]) : active.push(s));
+        let lines = '';
+        for (let key in SEGS) {
+            const s = SEGS[key];
+            lines += `<line x1="${s[0]}" y1="${s[1]}" x2="${s[2]}" y2="${s[3]}" class="${active.includes(key) ? 'on' : ''}" />`;
+        }
+        return `<div class="digit-wrapper"><svg class="digit" viewBox="-1.3 -2.3 2.6 4.6">${lines}</svg></div>`;
+    }
+
+    function createSepSVG(isUp) {
+        const lines = isUp ? `<line x1="-0.25" y1="0.1" x2="0" y2="-0.15" class="sep-line" /><line x1="0" y1="-0.15" x2="0.25" y2="0.1" class="sep-line" />` :
+            `<line x1="-0.25" y1="-0.1" x2="0" y2="0.15" class="sep-line" /><line x1="0" y1="0.15" x2="0.25" y2="-0.1" class="sep-line" />`;
+        return `<div style="width:20px; display:flex; justify-content:center;"><svg class="sep" viewBox="-0.5 -0.5 1 1">${lines}</svg></div>`;
+    }
+
+    function resizeOrbit() {
+        const orbit = document.getElementById('orbit');
+        const sun = document.getElementById('sun-star');
+        const r = orbit.clientWidth / 2;
+        sun.style.transformOrigin = `${18 + r}px 18px`;
+    }
+
+    function tick() {
+        const now = Date.now() / 1000;
+        let totalCunos = Math.floor((now - UNIX_ANCHOR) * 2);
+        let remC = totalCunos % 172800; if (remC < 0) remC += 172800;
+        const G = DAYS_ANCHOR + Math.floor(totalCunos / 172800);
+        const d = fromTotal(G);
+        const ph = Math.floor(Math.floor(remC/3600)/12), h = Math.floor(remC/3600)%12, s = Math.floor((remC%3600)/60), c = remC%60;
+
+        const angle = (remC / 172800) * 360;
+        document.getElementById('sun-star').style.transform = `rotate(${angle}deg)`;
+        document.getElementById('orbit-tail').style.transform = `rotate(${angle}deg)`;
+
+        const isBright = d.l <= 5;
+        document.documentElement.style.setProperty('--bg', isBright ? "#f2f2f2" : "#0a0a0a");
+        document.documentElement.style.setProperty('--theme-color', isBright ? (ph<2?"#e65100":"#01579b") : (ph<2?"#ffecb3":"#00e5ff"));
+
+        document.getElementById('date-symbols').innerHTML = d.a.toString().padStart(4,'0').split('').map(v=>createDigitSVG(v)).join('') + createSepSVG(true) + createDigitSVG(d.l) + createSepSVG(true) + createDigitSVG(d.z) + createSepSVG(true) + createDigitSVG(d.n);
+        document.getElementById('time-symbols').innerHTML = createDigitSVG(ph) + createDigitSVG(h) + createSepSVG(false) + createDigitSVG(Math.floor(s/10)) + createDigitSVG(s%10) + createSepSVG(false) + createDigitSVG(Math.floor(c/10)) + createDigitSVG(c%10);
+        
+        const toL = v => GLYPHS[v] || v;
+        document.getElementById('latin-date').innerText = `${d.a}.${toL(d.l)}.${toL(d.z)}.${toL(d.n)}`;
+        document.getElementById('latin-time').innerText = `${ph}${toL(h)}:${s.toString().padStart(2,'0')}:${c.toString().padStart(2,'0')}`;
+        
+        // 修改日期显示方式为 MM.DD.YYYY
+        const local = new Date();
+        const mm = (local.getMonth() + 1).toString().padStart(2, '0');
+        const dd = local.getDate().toString().padStart(2, '0');
+        const yyyy = local.getFullYear();
+        const timeStr = local.toTimeString().split(' ')[0];
+        document.getElementById('local-time').innerText = `${mm}.${dd}.${yyyy} ${timeStr}`;
+    }
+
+    window.addEventListener('resize', resizeOrbit);
+    resizeOrbit();
+    setInterval(tick, 500);
+    const initDate = new Date();
+    document.getElementById('conv-greg').value = initDate.toISOString().split('T')[0];
+    syncFromGreg();
+</script>
+</body>
+</html>
