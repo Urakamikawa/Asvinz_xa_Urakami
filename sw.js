@@ -1,7 +1,7 @@
 const CACHE_NAME = 'E5S-v1';
 const ASSETS = [
   'index.html',
-  'icon.png' // 如果你准备了图标的话
+  'icon.png' // 02.02.26update
 ];
 
 // 安装并缓存
