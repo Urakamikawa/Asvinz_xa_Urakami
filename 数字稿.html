@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>E.5S 历法点阵 - 选定与新变体 v2.3</title>
+    <style>
+        :root {
+            --bg: #050B17;
+            --gold: #FFECB3;
+            --cyan: #00E5FF;
+            --selected: #00FF88; /* 选定版本的标记色 */
+            --dim: rgba(255, 236, 179, 0.1);
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--gold);
+            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h2 { font-weight: 200; letter-spacing: 4px; border-bottom: 1px solid var(--dim); padding-bottom: 10px; width: 100%; max-width: 1100px; margin-top: 50px; }
+        
+        .blueprint-container {
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--dim);
+            padding: 40px;
+            margin: 20px 0;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .group-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            width: 100%;
+            max-width: 1100px;
+            margin-bottom: 30px;
+            padding: 15px;
+            background: rgba(255,255,255,0.01);
+            border-radius: 8px;
+        }
+
+        .glyph-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--dim);
+            padding: 15px;
+            text-align: center;
+            border-radius: 4px;
+            flex: 1;
+            min-width: 120px;
+            max-width: 180px;
+            position: relative;
+        }
+
+        /* 选定样式 */
+        .glyph-card.selected {
+            border-color: var(--selected);
+            background: rgba(0, 255, 136, 0.05);
+        }
+        .glyph-card.selected::before {
+            content: "SELECTED";
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 8px;
+            color: var(--selected);
+            font-weight: bold;
+        }
+
+        .glyph-name {
+            display: block;
+            margin-top: 12px;
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--cyan);
+        }
+
+        svg { overflow: visible; }
+        line { stroke-linecap: round; }
+        .guide-dot { fill: var(--dim); }
+        .label-point { fill: var(--gold); font-size: 0.12px; font-weight: bold; }
+        .label-line { fill: var(--cyan); font-size: 0.08px; font-family: monospace; opacity: 0.6; }
+    </style>
+</head>
+<body>
+
+    <h2>I. MASTER BLUEPRINT (H-Symmetry & b1/j Calibration)</h2>
+    <div class="blueprint-container" id="blueprint"></div>
+
+    <h2>II. GROUPED SPECIMENS (7II Selected & 5IV Added)</h2>
+    <div id="specimen-root"></div>
+
+    <script>
+        const P = {
+            A:[-1,2], B:[-1,1], C:[-1,0], D:[-1,-1], E:[-1,-2],
+            F:[0,2],  G:[0,0],  H:[0,-2],
+            I:[1,2],  J:[1,1],  K:[1,0],  L:[1,-1],  M:[1,-2]
+        };
+
+        const Seg = {
+            a1:['A','F'], a2:['F','I'], 
+            b1:['I','J'], b2:['J','L'], b3:['L','M'],
+            c:['E','M'], 
+            d1:['A','B'], d2:['B','D'], 
+            e:['C','K'], 
+            f1:['F','G'], f2:['G','H'], 
+            g:['B','F'],  h:['F','J'], 
+            i:['B','G'],  j:['G','J'],
+            k:['G','D'],  l:['G','L'], 
+            m:['D','H'],  n:['H','L'], 
+            r:['F','E'],  s:['I','H']
+        };
+
+        const Groups = [
+            { title: "基础数字 0-4", items: [
+                { id: "0", code: "g,h,m,n,d2,b2" },
+                { id: "1", code: "f1,f2" },
+                { id: "2", code: "d1,d2,m,n,b1,b2" },
+                { id: "3", code: "a1,a2,s" },
+            ]},
+            { title: "变体研究：数字 4 ", items: [
+                { id: "4I", code: "r,f1,l,b3" },
+                { id: "4II", code: "r,g,i,l,b3" },
+                { id: "4III", code: "r,g,i,f2" },
+            ]},
+            { title: "变体研究：数字 5 (新变体 5IV)", items: [
+                { id: "5I", code: "a2,s,m,k,l,b3" },
+                { id: "5II", code: "a2,s,m,k,l" },
+                { id: "5III", code: "a2,b1,b2,m,n,k,l" },
+                { id: "5IV", code: "a2,s,k,l,m,n" }
+            ]},
+            { title: "数字 6 & 8", items: [
+                { id: "6", code: "g,h,j,k,m,n" },
+                { id: "8", code: "h,g,i,k,m,n" }
+            ]},
+            { title: "变体研究：数字 7 (选定 7II)", items: [
+                { id: "7I", code: "g,h,i,j,n,m,b2" },
+                { id: "7II", code: "g,h,i,j,s", selected: true },
+                { id: "7III", code: "g,h,i,j,s,a2" }
+            ]},
+            { title: "符号 9, Ø, ƚ, Ʉ", items: [
+                { id: "9", code: "r,c" },
+                { id: "Ø", code: "g,h,m,n,d2,b2,j,k" },
+                { id: "ƚ", code: "f1,f2,e" },
+                { id: "Ʉ", code: "d1,d2,m,n,b1,b2,e" }
+            ]}
+        ];
+
+        function renderBlueprint() {
+            let svg = `<svg viewBox="-1.8 -2.8 3.6 5.6" width="500" height="700">`;
+            for (let id in P) {
+                const [x, y] = P[id];
+                svg += `<circle cx="${x}" cy="${-y}" r="0.04" class="guide-dot" />`;
+                svg += `<text x="${x}" y="${-y - 0.2}" class="label-point" text-anchor="middle">${id}</text>`;
+            }
+            for (let id in Seg) {
+                const [p1, p2] = Seg[id];
+                const x1 = P[p1][0], y1 = -P[p1][1], x2 = P[p2][0], y2 = -P[p2][1];
+                svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(255,236,179,0.3)" stroke-width="0.02" />`;
+                svg += `<text x="${(x1+x2)/2 + 0.08}" y="${(y1+y2)/2}" class="label-line">${id}</text>`;
+            }
+            svg += `</svg>`;
+            document.getElementById('blueprint').innerHTML = svg;
+        }
+
+        function renderSpecimens() {
+            const root = document.getElementById('specimen-root');
+            Groups.forEach(group => {
+                const title = document.createElement('h3');
+                title.style.cssText = "font-weight: 300; font-size: 16px; margin-top: 30px; opacity: 0.7;";
+                title.innerText = group.title;
+                root.appendChild(title);
+
+                const container = document.createElement('div');
+                container.className = 'group-container';
+                
+                group.items.forEach(glyph => {
+                    const card = document.createElement('div');
+                    card.className = `glyph-card ${glyph.selected ? 'selected' : ''}`;
+                    let svg = `<svg viewBox="-1.5 -2.5 3 5" width="100" height="160">`;
+                    for(let id in P) svg += `<circle cx="${P[id][0]}" cy="${-P[id][1]}" r="0.05" fill="rgba(255,255,255,0.05)" />`;
+                    glyph.code.split(',').forEach(lKey => {
+                        const p = Seg[lKey];
+                        if(p) {
+                            const color = glyph.selected ? "var(--selected)" : "var(--gold)";
+                            svg += `<line x1="${P[p[0]][0]}" y1="${-P[p[0]][1]}" x2="${P[p[1]][0]}" y2="${-P[p[1]][1]}" stroke="${color}" stroke-width="0.15" />`;
+                        }
+                    });
+                    svg += `</svg>`;
+                    card.innerHTML = svg + `<span class="glyph-name">${glyph.id}</span>`;
+                    container.appendChild(card);
+                });
+                root.appendChild(container);
+            });
+        }
+
+        renderBlueprint();
+        renderSpecimens();
+    </script>
+</body>
+</html>
